@@ -1,6 +1,7 @@
 """OHLCV persistence layer.
 
 Keeps a SQLite symbol registry and one Parquet file per ISIN under data/parquet/.
+NSE is preferred over BSE when both exchanges report the same ISIN on the same date.
 """
 from __future__ import annotations
 
@@ -59,12 +60,23 @@ def read_bars(isin: str) -> pd.DataFrame:
     return df.sort_values("dt").reset_index(drop=True)
 
 
+def _prefer_nse(df: pd.DataFrame) -> pd.DataFrame:
+    """When two exchanges exist for the same date, prefer NSE."""
+    if df.empty or "exchange" not in df.columns:
+        return df
+    df = df.sort_values("dt")
+    # Create a priority column: NSE=0, others=1
+    df["_ex_priority"] = df["exchange"].apply(lambda x: 0 if x == "NSE" else 1)
+    df = df.sort_values(["dt", "_ex_priority"]).drop_duplicates(subset=["dt"], keep="first")
+    return df.drop(columns=["_ex_priority"])
+
+
 def write_bars(isin: str, df: pd.DataFrame) -> None:
     if df.empty:
         return
     df = df.copy()
     df["dt"] = pd.to_datetime(df["dt"])
-    df = df.sort_values("dt").drop_duplicates(subset=["dt"], keep="last")
+    df = _prefer_nse(df)
     p = _isin_path(isin)
     df.to_parquet(p, index=False)
 
@@ -78,7 +90,7 @@ def upsert_bars(df: pd.DataFrame) -> None:
     if missing:
         raise ValueError(f"Missing columns: {missing}")
 
-    cols = ["dt", "open", "high", "low", "close", "volume", "turnover", "trades", "exchange", "isin"]
+    cols = ["dt", "open", "high", "low", "close", "volume", "turnover", "trades", "exchange", "isin", "symbol", "name", "series"]
     df = df[[c for c in cols if c in df.columns]].copy()
     df["dt"] = pd.to_datetime(df["dt"])
 
@@ -88,16 +100,19 @@ def upsert_bars(df: pd.DataFrame) -> None:
         existing = read_bars(isin)
         combined = pd.concat([existing, grp.drop(columns=["isin"])], ignore_index=True)
         combined["dt"] = pd.to_datetime(combined["dt"])
-        combined = combined.sort_values("dt").drop_duplicates(subset=["dt"], keep="last")
+        combined = _prefer_nse(combined)
         write_bars(isin, combined)
         symbol_val = grp["symbol"].iloc[0] if "symbol" in grp.columns else None
+        name_val = grp["name"].iloc[0] if "name" in grp.columns else None
+        exchange_val = grp["exchange"].iloc[0]
+        series_val = grp["series"].iloc[0] if "series" in grp.columns else None
         registry_rows.append(
             {
                 "isin": isin,
                 "symbol": symbol_val if pd.notna(symbol_val) else isin,
-                "name": grp["name"].iloc[0] if "name" in grp.columns else None,
-                "exchange": grp["exchange"].iloc[0],
-                "series": grp["series"].iloc[0] if "series" in grp.columns else None,
+                "name": name_val if pd.notna(name_val) else None,
+                "exchange": exchange_val if pd.notna(exchange_val) else "NSE",
+                "series": series_val if pd.notna(series_val) else None,
                 "first_dt": combined["dt"].min().strftime("%Y-%m-%d"),
                 "last_dt": combined["dt"].max().strftime("%Y-%m-%d"),
                 "n_bars": len(combined),
