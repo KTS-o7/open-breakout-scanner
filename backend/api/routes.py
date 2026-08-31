@@ -10,6 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.api import models
+from backend.compute.backtest import BacktestParams, run_backtest
 from backend.compute.indicators import add_mas
 from backend.data.store import read_bars
 
@@ -100,6 +101,26 @@ def get_stock(isin: str) -> models.StockDetail:
     detail = models.StockDetail(**row)
     detail.bars = get_ohlc(isin, full=False)
     return detail
+
+
+@router.get("/backtest", response_model=models.BacktestResponse)
+def get_backtest(
+    stop: float = Query(8.0),
+    sell: str = Query("ma50"),
+    risk: float = Query(1.5),
+    maxpos: int = Query(5),
+    capital: float = Query(1_000_000.0),
+    market: str = Query("all"),
+    entry: str = Query("close"),
+) -> models.BacktestResponse:
+    params = BacktestParams(
+        stop=stop, sell=sell, risk=risk, maxpos=maxpos,
+        capital=capital, market=market, entry=entry,
+    )
+    result = run_backtest(params)
+    if not result.get("ready"):
+        raise HTTPException(status_code=503, detail=result.get("error", "backtest not ready"))
+    return models.BacktestResponse(**result)
 
 
 def _to_float(v) -> Optional[float]:

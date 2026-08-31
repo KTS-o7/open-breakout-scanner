@@ -2,6 +2,7 @@ import { HashRouter, Routes, Route, NavLink } from "react-router-dom"
 import Dashboard from "@/pages/Dashboard"
 import Screener from "@/pages/Screener"
 import StockDetail from "@/pages/StockDetail"
+import Backtest from "@/pages/Backtest"
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -25,6 +26,14 @@ function Layout({ children }: { children: React.ReactNode }) {
           >
             Screener
           </NavLink>
+          <NavLink
+            to="/backtest"
+            className={({ isActive }) =>
+              `block px-3 py-2 rounded-md text-sm font-medium ${isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`
+            }
+          >
+            Backtest
+          </NavLink>
         </nav>
       </aside>
       <main className="flex-1 overflow-auto">{children}</main>
@@ -39,6 +48,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/screener" element={<Screener />} />
+          <Route path="/backtest" element={<Backtest />} />
           <Route path="/stock/:isin" element={<StockDetail />} />
         </Routes>
       </Layout>

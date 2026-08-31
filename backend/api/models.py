@@ -66,3 +66,27 @@ class BreakoutEvent(BaseModel):
 
 class StockDetail(StockRow):
     bars: List[OhlcBar] = []
+
+
+class BacktestYearRow(BaseModel):
+    yr: Optional[int] = None
+    n: int
+    win: float
+    mean: float
+    avgWin: Optional[float] = None
+    avgLoss: Optional[float] = None
+    days: Optional[int] = None
+
+
+class BacktestResponse(BaseModel):
+    ready: bool
+    stop: float
+    sell: str
+    risk: float
+    maxpos: int
+    capital: float
+    market: str
+    entry: str
+    total: BacktestYearRow
+    byYear: List[BacktestYearRow]
+    portfolio: dict
