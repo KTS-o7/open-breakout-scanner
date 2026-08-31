@@ -1,0 +1,1 @@
+# Open Breakout Scanner\n\nSelf-hosted momentum/breakout scanner for Indian equities. Inspired by well-known stage-analysis methods, built from scratch with free NSE/BSE bhavcopy data.\n\n**Not financial advice.**

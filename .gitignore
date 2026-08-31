@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.local
+data/parquet/
+data/raw/
+data/obs.db
+node_modules/
+dist/
+build/
+.DS_Store
+.vscode/
+.idea/
+_analysis/

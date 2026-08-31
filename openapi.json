@@ -1,0 +1,479 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "BananaPatterns API (reverse-engineered)",
+    "version": "1.0.0",
+    "description": "Unofficial API reference inferred from the BananaPatterns frontend bundle (/static/app.js) and live probing. The service is a nightly batch pipeline: after each NSE/BSE close, the server re-scans ~4,600 listed stocks, detects bases/breakouts, computes RS ratings, and re-runs rule-based backtests. The frontend only renders precomputed JSON.\n\nAuth: cookie session (Flask signed cookie `session`), obtained via email magic link (`/api/auth/request`) or Google OAuth. Many endpoints return 401 {\"error\":\"login\"} when logged out. Logged-out responses are anonymized: real ISINs/symbols are replaced with fake names and `t_...` tokens."
+  },
+  "servers": [{ "url": "https://bananapatterns.com" }],
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": { "type": "apiKey", "in": "cookie", "name": "session" }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean", "example": false },
+          "error": { "type": "string", "example": "login" }
+        }
+      },
+      "OhlcBar": {
+        "type": "object",
+        "description": "Daily bar. Prices are split-adjusted, dividend-unadjusted (Yahoo Finance convention). `rs` is the proprietary IBD-style relative-strength percentile (null on early history). `x` marks BSE-sourced series.",
+        "properties": {
+          "d": { "type": "string", "format": "date" },
+          "o": { "type": "number" },
+          "h": { "type": "number" },
+          "l": { "type": "number" },
+          "c": { "type": "number" },
+          "v": { "type": "integer" },
+          "rs": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+          "x": { "type": "string", "enum": ["BSE"], "description": "present when the series is BSE-sourced" }
+        }
+      },
+      "Base": {
+        "type": "object",
+        "description": "A detected base (consolidation) with its derived measurements.",
+        "properties": {
+          "a": { "type": "string", "format": "date", "description": "base start (anchor)" },
+          "e": { "type": "string", "format": "date", "description": "base end" },
+          "bo": { "type": ["string", "null"], "format": "date", "description": "breakout date, if any" },
+          "p": { "type": "number", "description": "pivot (buy point)" },
+          "lo": { "type": "number", "description": "base low" },
+          "depth": { "type": "number", "description": "base depth %" },
+          "wk": { "type": "number", "description": "length in weeks" },
+          "coil": { "type": "number", "description": "volatility contraction ratio (VCP-style tightening)" },
+          "dry": { "type": "number", "description": "volume dry-up ratio (recent vs prior average volume)" },
+          "obv": { "type": "number", "description": "OBV slope/divergence measure" },
+          "udBase": { "type": "number", "description": "up/down volume ratio within base" },
+          "lvl": { "type": "integer", "description": "base level/stage (base count in the current run)" },
+          "pokes": { "type": "integer", "description": "count of pivot pokes (intraday breaches without close above)" },
+          "squats": { "type": "integer", "description": "count of squats (failed follow-through days)" },
+          "springs": { "type": "integer", "description": "count of springs/shakeouts below support" },
+          "fp": { "type": "array", "items": { "type": "string", "format": "date" }, "description": "failed-poke dates" },
+          "sq": { "type": "array", "items": { "type": "string", "format": "date" }, "description": "squat dates" },
+          "run": { "type": "number", "description": "post-breakout run %" },
+          "forming": { "type": "boolean" },
+          "soFar": { "type": "boolean", "description": "breakout still holding" },
+          "rs": { "type": ["integer", "null"], "description": "RS rating at the time" }
+        }
+      },
+      "BaseAtoms": {
+        "type": "object",
+        "description": "Per-base factor snapshot keyed by base end date. ~50 precomputed factors per base: accumulation (accum10/20/50/100/Full), up/down money over 1-3 weeks (upmoney_*/dnmoney_*), gains and price swings over 1d-3w, distance/vs EMA & DMA (vsema_10..200, vsdma_10, ma), 52w-high proximity (nh52w), overhead supply, breakout-day quality (boGap, boRange, boThru, boVolX), dryPivot, quiet, rsMin/rsMax/rsb, turnover (turn_10, vol_*), OBV variants.",
+        "typeDeprecated": false,
+        "additionalProperties": true
+      },
+      "StockRow": {
+        "type": "object",
+        "description": "One stock's full precomputed state (~80 fields). Highlights: identity (isin, sym, name, tok anonymized token, group/grp/ind), trend (inUptrend, leader, newLeader, dma50/150/200, vs50/150/200, ma150over200), RS block (rs, rs5, rsAvg, rsMom, rsSlope, rsWk), base state (baseNum, baseStart, baseWk, baseDepth, baseHist, pivot, distpiv, pivotNote, formingAll, priorBase, nested, rebased, rebaseFailed), pattern events (pokes/pokesN/failedPokeDates, squats/squatDates, springs, shakeouts, quietAgo, coil, dry/dryDay/dryDepth), breakout state (boDate, sinceBo, gain, totalGain, run via trail, ext, exit, playedWhy, trade, verdict, radar), liquidity (liq via turn/turnMonth/turnToday, mcap, passFloor, inUni), episodes (episodes2026, exits2026), quad/quadMove, stale, aboveLow, fromHigh, listedWk, lastBar, pxDate, mom5, ud, obv, level.",
+        "additionalProperties": true
+      },
+      "BreakoutEvent": {
+        "type": "object",
+        "properties": {
+          "d": { "type": "string", "format": "date" },
+          "isin": { "type": "string", "description": "real ISIN when logged in; t_... token when anonymous" },
+          "sym": { "type": "string", "description": "anonymized when logged out" },
+          "name": { "type": "string", "description": "anonymized when logged out" },
+          "type": { "type": "string", "example": "inner_breakout" },
+          "level": { "type": "integer" },
+          "pivot": { "type": "number" },
+          "px": { "type": "number" },
+          "chg": { "type": "number", "description": "day change %" },
+          "volX": { "type": "number", "description": "volume multiple vs average" },
+          "liq": { "type": "number", "description": "liquidity (₹ Cr traded, median-based)" },
+          "mcap": { "type": "number", "description": "market cap ₹ Cr" },
+          "lk": { "type": "integer" }
+        }
+      },
+      "BacktestYearRow": {
+        "type": "object",
+        "properties": {
+          "yr": { "type": "integer" },
+          "n": { "type": "integer", "description": "closed trades" },
+          "open": { "type": "integer" },
+          "win": { "type": "number", "description": "win rate %" },
+          "mean": { "type": "number", "description": "mean return %" },
+          "med": { "type": "number" },
+          "avgWin": { "type": "number" },
+          "avgLoss": { "type": "number" },
+          "days": { "type": "integer", "description": "avg holding days" }
+        }
+      },
+      "BacktestTrade": {
+        "type": "object",
+        "properties": {
+          "isin": { "type": "string" },
+          "sym": { "type": "string" },
+          "bo": { "type": "string", "format": "date", "description": "entry date" },
+          "buy": { "type": "number" },
+          "exit": { "type": ["string", "null"], "format": "date" },
+          "sell": { "type": "number" },
+          "ret": { "type": "number" },
+          "days": { "type": "integer" },
+          "rs": { "type": "integer" },
+          "invested": { "type": "number" },
+          "open": { "type": "boolean" },
+          "why": { "type": "string", "description": "exit reason" },
+          "yr": { "type": "integer" }
+        }
+      },
+      "BacktestResponse": {
+        "type": "object",
+        "properties": {
+          "ready": { "type": "boolean", "description": "false while trade records rebuild (also returned for invalid screen names)" },
+          "screen": { "type": "string", "enum": ["vcp", "ath", "bigbase", "ipo"] },
+          "stop": { "type": "number", "description": "hard stop %" },
+          "sell": { "type": "number", "description": "resolved sell-rule parameter" },
+          "risk": { "type": "number", "description": "risk % of equity per trade" },
+          "maxpos": { "type": "integer" },
+          "capital": { "type": "number" },
+          "market": { "type": "string" },
+          "period": { "type": "string" },
+          "entry": { "type": "string" },
+          "sizeExample": { "type": "number", "description": "example position size in ₹" },
+          "strongPct": { "type": "number" },
+          "byYear": { "type": "array", "items": { "$ref": "#/components/schemas/BacktestYearRow" } },
+          "total": { "$ref": "#/components/schemas/BacktestYearRow" },
+          "portfolio": {
+            "type": "object",
+            "properties": {
+              "start": { "type": "number" },
+              "end": { "type": "number" },
+              "mult": { "type": "number" },
+              "cagr": { "type": "number" },
+              "maxdd": { "type": "number" },
+              "years": { "type": "number" },
+              "bestYear": { "type": "object" },
+              "worstYear": { "type": "object" },
+              "yearGrowth": { "type": "array", "items": { "type": "object", "properties": { "yr": { "type": "string" }, "grow": { "type": "number" } } } },
+              "taken": { "type": "integer" },
+              "skipFull": { "type": "integer", "description": "signals skipped: portfolio full" },
+              "skipWeak": { "type": "integer", "description": "signals skipped: too weak" },
+              "log": { "type": "array", "items": { "$ref": "#/components/schemas/BacktestTrade" } },
+              "logGated": { "type": "boolean" }
+            }
+          }
+        }
+      },
+      "Universe": {
+        "type": "object",
+        "description": "Master nightly snapshot (~21 MB).",
+        "properties": {
+          "asOf": { "type": "string", "format": "date" },
+          "regime": { "type": "string", "example": "risk-on" },
+          "health": {
+            "type": "object",
+            "properties": {
+              "universe": { "type": "integer" },
+              "in_uptrend": { "type": "integer" },
+              "pct_uptrend": { "type": "integer" },
+              "leaders": { "type": "integer" },
+              "in_base": { "type": "integer" },
+              "breaking_out": { "type": "integer" },
+              "running": { "type": "integer" },
+              "exited": { "type": "integer" }
+            }
+          },
+          "sectors": { "type": "array", "items": { "type": "object", "properties": { "group": { "type": "string" }, "n": { "type": "integer" }, "trail": { "type": "array" }, "rs5": { "type": "number" } } } },
+          "stocks": { "type": "array", "items": { "$ref": "#/components/schemas/StockRow" } }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/me": {
+      "get": {
+        "summary": "Current session/user",
+        "responses": { "200": { "description": "{loggedIn, name, email, courseInterest}" } }
+      }
+    },
+    "/api/auth/config": {
+      "get": {
+        "summary": "Which auth providers are enabled",
+        "responses": { "200": { "description": "{google, emailConfigured}" } }
+      }
+    },
+    "/api/auth/request": {
+      "post": {
+        "summary": "Request email magic-link login",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "name": { "type": "string" }, "email": { "type": "string" } }, "required": ["email"] } } } },
+        "responses": { "200": { "description": "{ok:true}" } }
+      }
+    },
+    "/api/data/universe.json": {
+      "get": {
+        "summary": "Master nightly snapshot: every tracked stock's full precomputed state + market health + sector rollups",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": { "description": "Universe snapshot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Universe" } } } },
+          "401": { "description": "login required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/data/sparks.json": {
+      "get": {
+        "summary": "Sparkline close-price arrays keyed by ISIN (~4 MB)",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "description": "{isin: [close, ...]}" } }
+      }
+    },
+    "/api/data/industry_pulse.json": {
+      "get": {
+        "summary": "52 weeks of per-industry aggregates (rotation/pulse view)",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "description": "{asOf, weeks52: [...], ...}" } }
+      }
+    },
+    "/api/breakouts": {
+      "get": {
+        "summary": "Market-wide breakout events for the last N trading days",
+        "parameters": [{ "name": "days", "in": "query", "schema": { "type": "integer", "enum": [1, 5], "default": 1 } }],
+        "responses": { "200": { "description": "days + events", "content": { "application/json": { "schema": { "type": "object", "properties": { "days": { "type": "array", "items": { "type": "string", "format": "date" } }, "events": { "type": "array", "items": { "$ref": "#/components/schemas/BreakoutEvent" } } } } } } } }
+      }
+    },
+    "/api/feed": {
+      "get": {
+        "summary": "Last 10 trading days of events across all screens",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "description": "{days, events[]} (BreakoutEvent-like)" } }
+      }
+    },
+    "/api/backtest": {
+      "get": {
+        "summary": "Run/retrieve a full portfolio-level rules backtest",
+        "description": "Server simulates the strategy: position sizing from risk% and stop%, max positions cap, skip-logging (skipFull/skipWeak), per-trade log with exit reasons, equity stats per year. Likely cached per parameter tuple.",
+        "parameters": [
+          { "name": "screen", "in": "query", "required": true, "schema": { "type": "string", "enum": ["vcp", "ath", "bigbase", "ipo"] }, "description": "vcp=VCP, ath=Blue sky, bigbase=Multi-year/deep comeback, ipo=IPO base" },
+          { "name": "stop", "in": "query", "schema": { "type": "string", "default": "8" }, "description": "hard stop-loss %" },
+          { "name": "sell", "in": "query", "schema": { "type": "string", "default": "ma50" }, "description": "exit rule, e.g. ma50 (50-DMA trail), trend" },
+          { "name": "risk", "in": "query", "schema": { "type": "number", "default": 1.5 }, "description": "% of equity risked per trade" },
+          { "name": "maxpos", "in": "query", "schema": { "type": "integer", "default": 5 } },
+          { "name": "market", "in": "query", "schema": { "type": "string", "default": "all" } },
+          { "name": "capital", "in": "query", "schema": { "type": "number", "default": 1000000 } },
+          { "name": "period", "in": "query", "schema": { "type": "string", "default": "all" } },
+          { "name": "entry", "in": "query", "schema": { "type": "string", "default": "pivot" } }
+        ],
+        "responses": { "200": { "description": "Backtest result (or {ready:false} while building)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BacktestResponse" } } } } }
+      }
+    },
+    "/api/ohlc/{isin}": {
+      "get": {
+        "summary": "Full daily OHLCV history + per-bar RS rating",
+        "description": "Default window starts ~2021-08; full=1 returns complete history (BSE names back to ~2000). Split-adjusted, dividend-unadjusted (Yahoo convention).",
+        "parameters": [
+          { "name": "isin", "in": "path", "required": true, "schema": { "type": "string" }, "description": "ISIN (or anonymized t_ token when logged out)" },
+          { "name": "full", "in": "query", "schema": { "type": "string", "enum": ["1"] } }
+        ],
+        "responses": { "200": { "description": "{isin, cut, full, bars[]}", "content": { "application/json": { "schema": { "type": "object", "properties": { "isin": { "type": "string" }, "cut": { "type": "string" }, "full": { "type": "boolean" }, "bars": { "type": "array", "items": { "$ref": "#/components/schemas/OhlcBar" } } } } } } } }
+      }
+    },
+    "/api/chart/{isin}": {
+      "get": {
+        "summary": "Lightweight point series for card sparkline charts",
+        "parameters": [{ "name": "isin", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "{points: [...]}" } }
+      }
+    },
+    "/api/xray/{isin}": {
+      "get": {
+        "summary": "All detected bases for a stock with pattern-quality measurements (the X-ray view)",
+        "parameters": [{ "name": "isin", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "{isin, bases[]}", "content": { "application/json": { "schema": { "type": "object", "properties": { "isin": { "type": "string" }, "bases": { "type": "array", "items": { "$ref": "#/components/schemas/Base" } } } } } } } }
+      }
+    },
+    "/api/baseatoms/{isin}": {
+      "get": {
+        "summary": "Per-base factor atoms (~50 factors per base, keyed by base date) used for ranking/percentiles",
+        "parameters": [{ "name": "isin", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "{asOf, b: {baseDate: BaseAtoms}}", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BaseAtoms" } } } } }
+      }
+    },
+    "/api/stock/{isin}": {
+      "get": {
+        "summary": "One stock's full precomputed row (resolves/updates universe entry; also maps anonymized tokens)",
+        "parameters": [{ "name": "isin", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "{ok, tok, row: StockRow}", "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean" }, "tok": { "type": "string" }, "row": { "$ref": "#/components/schemas/StockRow" } } } } } } }
+      }
+    },
+    "/api/search": {
+      "get": {
+        "summary": "Symbol/name search",
+        "parameters": [{ "name": "q", "in": "query", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "{ok, hits: [{isin, sym, name, rs, verdict, tok}]}" } }
+      }
+    },
+    "/api/sectors": {
+      "get": {
+        "summary": "Every industry group treated as a synthetic index: its own base detection, pivot, price series (~1.9 MB)",
+        "responses": { "200": { "description": "{sectors: [{name, n, asOf, last, pivot, base{start,end,len,depth,bo_date,forming}, series[]}]}" } }
+      }
+    },
+    "/api/screens": {
+      "get": {
+        "summary": "User's saved custom screens",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "description": "{ok, screens[]}" } }
+      }
+    },
+    "/api/portfolio": {
+      "get": {
+        "summary": "User's watchlists ('live book' tracking)",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "description": "{ok, first, alerts, lists: [{id, name, items[]}]}" } }
+      }
+    },
+    "/api/list_trend": {
+      "post": {
+        "summary": "Trend/health rollup for an arbitrary list of stocks (used for watchlist KPIs)",
+        "security": [{ "sessionCookie": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "isins": { "type": "array", "items": { "type": "string" } } }, "required": ["isins"] } } } },
+        "responses": { "200": { "description": "{ok, ...}" } }
+      }
+    },
+    "/api/blend_ranks": {
+      "post": {
+        "summary": "Rank stocks by a blended multi-term factor expression (custom screen engine)",
+        "security": [{ "sessionCookie": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "terms": { "type": "array", "items": { "type": "object" } }, "d": { "type": "string", "format": "date", "description": "rank as of a previous date (time-travel ranking)" } }, "required": ["terms"] } } } },
+        "responses": { "200": { "description": "ranked rows" } }
+      }
+    },
+    "/api/name_top": {
+      "post": {
+        "summary": "De-anonymize up to 16 t_ tokens (public-mode teaser resolution)",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "toks": { "type": "array", "items": { "type": "string" }, "maxItems": 16 } } } } } },
+        "responses": { "200": { "description": "{ok, rows[]}" } }
+      }
+    },
+    "/api/group_names": {
+      "get": {
+        "summary": "Resolve stock names for a sector/industry group (public mode)",
+        "parameters": [
+          { "name": "grp", "in": "query", "schema": { "type": "string" } },
+          { "name": "sub", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "{ok, rows[]} or {error:'which group?'}" } }
+      }
+    },
+    "/api/wh": {
+      "get": {
+        "summary": "Fetch factor 'atom' values by key, max 12 keys per request (powers custom filter metrics)",
+        "parameters": [{ "name": "keys", "in": "query", "required": true, "schema": { "type": "string" }, "description": "comma-separated factor keys, 1-12" }],
+        "responses": { "200": { "description": "{ok, ...atom maps}" } }
+      }
+    },
+    "/api/filters": {
+      "get": {
+        "summary": "User's saved custom filters",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "description": "{ok, filters[]}" } }
+      }
+    },
+    "/api/dials": {
+      "get": {
+        "summary": "User's saved extra dashboard dials",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "description": "{ok, dials}" } }
+      },
+      "post": {
+        "summary": "Save extra dashboard dials",
+        "security": [{ "sessionCookie": [] }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "dials": { "type": "array", "items": { "type": "object" } } } } } } },
+        "responses": { "200": { "description": "{ok:true}" } }
+      }
+    },
+    "/api/me/marks": {
+      "get": {
+        "summary": "User UI marks (tour/guide/news seen timestamps)",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "description": "{ok, signedIn, tourSeen, guideSeen, newsSeen, ...}" } }
+      }
+    },
+    "/api/prefs": {
+      "get": {
+        "summary": "User preferences (server-synced)",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "description": "preferences object" } }
+      }
+    },
+    "/api/watchlists": {
+      "get": {
+        "summary": "Watchlist CRUD",
+        "security": [{ "sessionCookie": [] }],
+        "responses": { "200": { "description": "watchlists" } }
+      }
+    },
+    "/api/track": {
+      "post": {
+        "summary": "Client-side analytics event tracking",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
+        "responses": { "200": { "description": "{ok:true}" } }
+      }
+    },
+    "/api/feedback": {
+      "post": {
+        "summary": "User feedback submission",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
+        "responses": { "200": { "description": "{ok:true}" } }
+      }
+    },
+    "/api/course-interest": {
+      "post": {
+        "summary": "Register interest in the planned course",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } },
+        "responses": { "200": { "description": "{ok:true}" } }
+      }
+    },
+    "/static/data/method.json": {
+      "get": {
+        "summary": "Public: methodology funnel (4645 tracked → liquidity floor → leaders)",
+        "responses": { "200": { "description": "{snapshot, funnel: [{label, count, note}]}" } }
+      }
+    },
+    "/static/data/data.json": {
+      "get": {
+        "summary": "Public: headline published backtest stats (the canonical method track record)",
+        "responses": { "200": { "description": "{head: {start_equity, end_equity, multiple, cagr_pct, total_return_pct, max_dd_pct, win_rate_pct, profit_factor, n_trades, avg_win_pct, avg_loss_pct, ...}, ...}" } }
+      }
+    },
+    "/static/data/health_history.json": {
+      "get": {
+        "summary": "Public: daily market-health history (pct in uptrend, leaders, breaking_out, running)",
+        "responses": { "200": { "description": "[{d, pct, leaders, universe, breaking_out, running}]" } }
+      }
+    },
+    "/static/data/tvsyms.json": {
+      "get": {
+        "summary": "ISIN → TradingView symbol map (for chart links)",
+        "responses": { "200": { "description": "{ISIN: 'NSE:SYM' | 'BSE:SYM'}" } }
+      }
+    },
+    "/static/data/alltrades.json": {
+      "get": { "summary": "Complete published trade record (currently 404 — availability varies)", "responses": { "200": { "description": "trade list" }, "404": { "description": "not currently published" } } }
+    },
+    "/static/data/live_positions.json": {
+      "get": { "summary": "Open positions of the public live book (currently 404)", "responses": { "200": { "description": "positions" }, "404": { "description": "not currently published" } } }
+    },
+    "/static/data/live_charts.json": {
+      "get": { "summary": "Chart point series for live positions (currently 404)", "responses": { "200": { "description": "{isin: {points[]}}" }, "404": { "description": "not currently published" } } }
+    },
+    "/static/data/benchmark.json": {
+      "get": { "summary": "Benchmark comparison series (currently 404)", "responses": { "200": { "description": "benchmark series" }, "404": { "description": "not currently published" } } }
+    },
+    "/static/data/playground.json": {
+      "get": { "summary": "Interactive playground dataset (currently 404)", "responses": { "200": { "description": "playground data" }, "404": { "description": "not currently published" } } }
+    },
+    "/static/data/setup_charts.json": {
+      "get": { "summary": "Chart series for current setups (currently 404)", "responses": { "200": { "description": "{isin: chart}" }, "404": { "description": "not currently published" } } }
+    },
+    "/static/data/closed_charts.json": {
+      "get": { "summary": "Chart series for closed trades (currently 404)", "responses": { "200": { "description": "{isin: chart}" }, "404": { "description": "not currently published" } } }
+    },
+    "/static/data/sectors_history.json": {
+      "get": { "summary": "Sector history (currently 404)", "responses": { "200": { "description": "sector history" }, "404": { "description": "not currently published" } } }
+    }
+  }
+}
