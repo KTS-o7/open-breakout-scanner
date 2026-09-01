@@ -131,9 +131,9 @@ def upsert_bars(df: pd.DataFrame) -> None:
                     VALUES (:isin, :symbol, :name, :exchange, :series, :first_dt, :last_dt, :n_bars, :updated_at)
                     ON CONFLICT(isin) DO UPDATE SET
                         symbol=excluded.symbol,
-                        name=excluded.name,
+                        name=COALESCE(excluded.name, symbols.name),
                         exchange=excluded.exchange,
-                        series=excluded.series,
+                        series=COALESCE(excluded.series, symbols.series),
                         first_dt=excluded.first_dt,
                         last_dt=excluded.last_dt,
                         n_bars=excluded.n_bars,
