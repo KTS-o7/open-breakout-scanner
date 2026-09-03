@@ -2,7 +2,16 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api
 
 async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`)
-  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`)
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`
+    try {
+      const body = await res.json()
+      if (body?.detail) message = body.detail
+    } catch {
+      // response wasn't JSON, keep the default message
+    }
+    throw new Error(message)
+  }
   return res.json() as Promise<T>
 }
 
