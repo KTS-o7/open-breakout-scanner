@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { api, type Health, type StockRow } from "@/lib/api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 
 function numberFmt(n?: number) {
   if (n === undefined || n === null) return "-"
@@ -22,7 +23,39 @@ export default function Dashboard() {
 
   const breakouts = useMemo(() => (snap?.stocks || []).filter((s) => s.breakout).slice(0, 50), [snap])
 
-  if (loading) return <div className="p-8">Loading…</div>
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-baseline justify-between">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-4 w-20" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-3 w-24" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-44" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-5 w-full" />
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
   if (error) return <div className="p-8 text-destructive">{error}</div>
   if (!snap) return null
 

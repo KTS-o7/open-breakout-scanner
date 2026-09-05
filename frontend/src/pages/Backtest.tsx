@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface BTResult {
   total: { n: number; win: number; mean: number; avgWin: number; avgLoss: number; days: number }
@@ -101,6 +102,31 @@ export default function Backtest() {
       </Card>
 
       {error && <div className="text-destructive">{error}</div>}
+
+      {loading && !result && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-4 space-y-2">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-8 w-20" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-24" />
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Skeleton key={i} className="h-5 w-full" />
+              ))}
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {result && (
         <>
