@@ -1,0 +1,8 @@
+.git
+data/
+.venv
+node_modules
+_analysis
+.worktrees
+*.pyc
+__pycache__
