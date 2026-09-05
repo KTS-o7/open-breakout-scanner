@@ -1,0 +1,79 @@
+# CodeRabbit configuration for open-breakout-scanner
+# Docs: https://docs.coderabbit.ai/guides/configuration
+language: en-US
+tone_instructions: |
+  Be direct and technical. Prioritize correctness and data integrity over style.
+  This project ingests free NSE/BSE market data and computes momentum screeners —
+  flag anything that could silently corrupt price data or mislead a user about
+  trading signals. Do not pad reviews with praise.
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  poem: false
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false
+    ignore_title_keywords:
+      - WIP
+      - DO NOT REVIEW
+  path_filters:
+    - "data/**"
+    - "**/dist/**"
+    - "**/node_modules/**"
+    - ".venv/**"
+  path_instructions:
+    - path: "backend/compute/backtest.py"
+      instructions: |
+        Event-driven backtest. Equity accounting must be exact: no lookahead
+        (signals from bar N may only trade at bar N+1 open), commissions and
+        slippage applied on every fill, and position sizing must never exceed
+        available cash. Flag any change that trades on the signal bar itself.
+    - path: "backend/compute/snapshot.py"
+      instructions: |
+        Nightly snapshot contract: output JSON is consumed by the FastAPI
+        routes verbatim. Changing key names, types, or the health block shape
+        is a breaking change — flag it loudly.
+    - path: "backend/data/ingest_nse.py"
+      instructions: |
+        Free-data parsing of NSE bhavcopies and EQUITY_L.csv. Never suggest
+        paid/vendor APIs — the project's premise is zero-cost public data.
+        Watch for: symbol/ISIN mapping that drops rows silently, series
+        filtering (EQ/BE only), and date handling for old vs recent bhavcopy
+        URL formats.
+    - path: "backend/data/ingest_bse.py"
+      instructions: |
+        Same free-data constraints as ingest_nse.py. BSE and NSE rows share the
+        store — flag any dedup or exchange-tagging change that could cross-
+        contaminate the two universes.
+    - path: "backend/data/store.py"
+      instructions: |
+        Per-ISIN parquet files plus a SQLite symbol registry. NSE is the
+        preferred source on conflicts. Upserts must not overwrite a known
+        name/series with NULL — check COALESCE semantics on any change to the
+        ON CONFLICT clause.
+    - path: "backend/**"
+      instructions: |
+        Use logging (logger.info/warning), never print(). All dates are
+        timezone-naive IST market dates unless explicitly stated otherwise.
+    - path: "frontend/src/lib/api.ts"
+      instructions: |
+        API base comes from import.meta.env.VITE_API_BASE_URL with a local
+        dev fallback. Do not hardcode production URLs.
+    - path: "frontend/src/**"
+      instructions: |
+        Styling is Tailwind + shadcn with CSS-variable theming (dark mode
+        toggles the .dark class on <html>). Match existing component patterns
+        instead of introducing new styling approaches.
+    - path: "README.md"
+      instructions: |
+        Never add investment advice or profit claims. Keep the honest
+        disclaimer intact: educational tool, backtests are hypothetical.
+chat:
+  auto_reply: true
+knowledge_base:
+  issues: auto
+  learnings: auto
+  pull_requests: auto
