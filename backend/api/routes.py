@@ -25,7 +25,7 @@ router = APIRouter()
 def _latest_snapshot() -> dict:
     files = sorted(SNAPSHOT_DIR.glob("snapshot_*.json"), reverse=True)
     if not files:
-        raise HTTPException(status_code=503, detail="No snapshot available. Run 'python -m backend.compute.snapshot' first.")
+        raise HTTPException(status_code=503, detail="No snapshot available. Run 'make snapshot' in your terminal first.")
     with open(files[0]) as f:
         return json.load(f)
 
