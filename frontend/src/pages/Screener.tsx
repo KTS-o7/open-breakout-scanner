@@ -3,6 +3,7 @@ import { api, type StockRow } from "@/lib/api"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 
 type SortKey = "symbol" | "close" | "rs" | "vol" | "from_ath" | "trend" | "leader" | "breakout"
 
@@ -76,7 +77,23 @@ export default function Screener() {
         : { key, dir: key === "symbol" ? "asc" : "desc" }
     )
 
-  if (loading) return <div className="p-8">Loading…</div>
+  if (loading) {
+    return (
+      <div className="p-6 space-y-4">
+        <div className="flex items-baseline justify-between">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-8 w-52" />
+        </div>
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <Skeleton key={i} className="h-5 w-full" />
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
   if (error) return <div className="p-8 text-destructive">{error}</div>
 
   return (
