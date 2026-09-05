@@ -2,10 +2,10 @@
 # Docs: https://docs.coderabbit.ai/guides/configuration
 language: en-US
 tone_instructions: |
-  Be direct and technical. Prioritize correctness and data integrity over style.
-  This project ingests free NSE/BSE market data and computes momentum screeners —
-  flag anything that could silently corrupt price data or mislead a user about
-  trading signals. Do not pad reviews with praise.
+  Be direct and technical. Prioritize correctness and data integrity.
+  This project ingests free NSE/BSE market data for momentum screeners —
+  flag anything that could silently corrupt price data or mislead users
+  about trading signals. No filler praise.
 reviews:
   profile: chill
   request_changes_workflow: false
@@ -74,6 +74,9 @@ reviews:
 chat:
   auto_reply: true
 knowledge_base:
-  issues: auto
-  learnings: auto
-  pull_requests: auto
+  issues:
+    scope: auto
+  learnings:
+    scope: auto
+  pull_requests:
+    scope: auto
