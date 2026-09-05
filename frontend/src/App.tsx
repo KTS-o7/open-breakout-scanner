@@ -24,12 +24,13 @@ function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen">
       <a className="skip-link" href="#main-content">Skip to content</a>
       <header className="sticky top-0 z-20 border-b border-border/80 bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 sm:px-6">
-          <NavLink to="/" end className="shrink-0 text-sm font-semibold tracking-[-0.02em] text-foreground">
-            Open Breakout
+        <div className="mx-auto flex h-14 max-w-[1440px] items-center gap-2 px-3 sm:h-16 sm:gap-4 sm:px-6">
+          <NavLink aria-label="Open Breakout" to="/" end className="shrink-0 text-sm font-semibold tracking-[-0.02em] text-foreground">
+            <span className="sm:hidden" aria-hidden="true">OB</span>
+            <span className="hidden sm:inline">Open Breakout</span>
           </NavLink>
           <span className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
-          <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" aria-label="Primary">
+          <nav className="flex min-w-0 flex-1 items-center gap-0.5" aria-label="Primary">
             {navigation.map((item) => (
               <NavLink
                 key={item.to}
@@ -37,7 +38,7 @@ function Layout({ children }: { children: React.ReactNode }) {
                 end={item.end}
                 className={({ isActive }) =>
                   [
-                    "rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    "whitespace-nowrap rounded-md px-2 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:px-3 sm:text-sm",
                     isActive ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   ].join(" ")
                 }
