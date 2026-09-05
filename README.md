@@ -1,5 +1,7 @@
 # Open Breakout Scanner
 
+[![test](https://github.com/KTS-o7/open-breakout-scanner/actions/workflows/test.yml/badge.svg)](https://github.com/KTS-o7/open-breakout-scanner/actions/workflows/test.yml)
+
 A self-hosted, open-source momentum/breakout scanner for Indian equities. Inspired by well-known stage-analysis methods (bases, pivots, relative strength, sector rotation), but built from scratch with free NSE/BSE data.
 
 **Not financial advice.** This is a research and education tool; it is not a recommendation to buy or sell any security.
