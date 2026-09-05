@@ -26,7 +26,13 @@ def _median_turnover(df: pd.DataFrame) -> float:
     return df["turnover"].rolling(window=20, min_periods=5).median().iloc[-1]
 
 
-def compute_stock_row(isin: str, bars: pd.DataFrame, universe_roc: pd.Series, as_of: date) -> Optional[dict]:
+def compute_stock_row(
+    isin: str,
+    bars: pd.DataFrame,
+    universe_roc: pd.Series,
+    as_of: date,
+    name: Optional[str] = None,
+) -> Optional[dict]:
     if bars.empty or len(bars) < 30:
         return None
     df = bars.copy()
@@ -64,10 +70,14 @@ def compute_stock_row(isin: str, bars: pd.DataFrame, universe_roc: pd.Series, as
             in_uptrend
         )
 
+    stock_name = name if (name is not None and pd.notna(name)) else latest.get("name")
+    if pd.isna(stock_name):
+        stock_name = None
+
     return {
         "isin": isin,
         "symbol": latest.get("symbol", isin),
-        "name": latest.get("name"),
+        "name": stock_name,
         "exchange": latest.get("exchange"),
         "dt": as_of.isoformat(),
         "close": round(float(latest["close"]), 2),
@@ -91,12 +101,38 @@ def _to_float(v):
     return round(float(v), 2)
 
 
-def build_snapshot(as_of: Optional[date] = None) -> dict:
+def build_snapshot(
+    as_of: Optional[date] = None,
+    security_master_df: Optional[pd.DataFrame] = None,
+) -> dict:
     if as_of is None:
         as_of = date.today()
     symbols = list_symbols()
     if symbols.empty:
         return {"as_of": as_of.isoformat(), "stocks": [], "health": {}}
+
+    # Merge EQUITY_L.csv security master names into the snapshot
+    master_names: dict[str, str] = {}
+    master = security_master_df
+    if master is None:
+        try:
+            from backend.data.security_master import download_nse_security_master
+            master = download_nse_security_master()
+        except Exception as exc:
+            logger.warning("Could not download security master for snapshot: %s", exc)
+            master = None
+
+    if master is not None and not master.empty:
+        for _, m_row in master.iterrows():
+            m_name = m_row.get("name")
+            if pd.notna(m_name) and str(m_name).strip():
+                clean_name = str(m_name).strip()
+                m_isin = m_row.get("isin")
+                if pd.notna(m_isin) and str(m_isin).strip():
+                    master_names[str(m_isin).strip()] = clean_name
+                m_sym = m_row.get("symbol")
+                if pd.notna(m_sym) and str(m_sym).strip():
+                    master_names[str(m_sym).strip()] = clean_name
 
     roc_records = []
     for _, sym in symbols.iterrows():
@@ -112,7 +148,13 @@ def build_snapshot(as_of: Optional[date] = None) -> dict:
     stocks = []
     for _, sym in symbols.iterrows():
         bars = read_bars(sym["isin"])
-        row = compute_stock_row(sym["isin"], bars, universe_roc, as_of)
+        sym_name = sym.get("name")
+        stock_name = (
+            master_names.get(sym["isin"])
+            or (master_names.get(sym.get("symbol")) if pd.notna(sym.get("symbol")) else None)
+            or (sym_name if pd.notna(sym_name) else None)
+        )
+        row = compute_stock_row(sym["isin"], bars, universe_roc, as_of, name=stock_name)
         if row:
             stocks.append(row)
 

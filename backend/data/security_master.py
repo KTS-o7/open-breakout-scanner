@@ -29,19 +29,23 @@ def download_nse_security_master(timeout: float = 60.0) -> Optional[pd.DataFrame
     except Exception as exc:
         logger.warning("Parse failed: %s", exc)
         return None
+    df.columns = df.columns.str.strip()
     df = df.rename(
         columns={
             "SYMBOL": "symbol",
             "NAME OF COMPANY": "name",
-            " SERIES": "series",
-            " DATE OF LISTING": "listing_date",
-            " PAID UP VALUE": "face_value",
-            " MARKET LOT": "lot_size",
-            " ISIN NUMBER": "isin",
-            " FACE VALUE": "face_value2",
+            "SERIES": "series",
+            "DATE OF LISTING": "listing_date",
+            "PAID UP VALUE": "face_value",
+            "MARKET LOT": "lot_size",
+            "ISIN NUMBER": "isin",
+            "FACE VALUE": "face_value2",
         }
     )
     df["exchange"] = "NSE"
+    for col in ["symbol", "name", "series", "isin"]:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip()
     return df[["symbol", "name", "series", "isin", "exchange"]]
 
 

@@ -17,29 +17,53 @@ USER_AGENT = "Mozilla/5.0 (compatible; OpenBreakoutScanner/0.1)"
 
 
 @lru_cache(maxsize=1)
-def _nse_isin_map(timeout: float = 60.0) -> Dict[str, str]:
-    """Download NSE equity security master and return symbol -> ISIN map."""
+def _load_nse_master_df(timeout: float = 60.0) -> Optional[pd.DataFrame]:
+    """Download and cache the NSE equity security master."""
     url = "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
-    logger.info("Loading NSE security master for ISIN mapping")
+    logger.info("Loading NSE security master: %s", url)
     try:
         r = httpx.get(url, headers={"User-Agent": USER_AGENT}, timeout=timeout, follow_redirects=True)
         r.raise_for_status()
     except Exception as exc:
         logger.warning("Could not load NSE security master: %s", exc)
-        return {}
+        return None
     try:
         df = pd.read_csv(io.StringIO(r.text))
     except Exception as exc:
         logger.warning("Could not parse NSE security master: %s", exc)
-        return {}
+        return None
     df.columns = df.columns.str.strip()
-    df = df.rename(columns={"SYMBOL": "symbol", "ISIN NUMBER": "isin", "SERIES": "series"})
+    return df
+
+
+@lru_cache(maxsize=1)
+def _nse_isin_map(timeout: float = 60.0) -> Dict[str, str]:
+    """Download NSE equity security master and return symbol -> ISIN map."""
+    master = _load_nse_master_df(timeout)
+    if master is None or master.empty:
+        return {}
+    df = master.rename(columns={"SYMBOL": "symbol", "ISIN NUMBER": "isin", "SERIES": "series"}).copy()
     df["symbol"] = df["symbol"].astype(str).str.strip()
     df["isin"] = df["isin"].astype(str).str.strip()
     df["series"] = df["series"].astype(str).str.strip()
     df = df[df["series"].isin(["EQ", "BE"])]
     # Drop duplicate symbols, keep first
     return df.drop_duplicates("symbol").set_index("symbol")["isin"].to_dict()
+
+
+@lru_cache(maxsize=1)
+def _nse_name_map(timeout: float = 60.0) -> Dict[str, str]:
+    """Download NSE equity security master and return symbol -> company name map."""
+    master = _load_nse_master_df(timeout)
+    if master is None or master.empty:
+        return {}
+    df = master.rename(columns={"SYMBOL": "symbol", "NAME OF COMPANY": "name", "SERIES": "series"}).copy()
+    df["symbol"] = df["symbol"].astype(str).str.strip()
+    df["name"] = df["name"].astype(str).str.strip()
+    if "series" in df.columns:
+        df["series"] = df["series"].astype(str).str.strip()
+        df = df[df["series"].isin(["EQ", "BE"])]
+    return df.drop_duplicates("symbol").set_index("symbol")["name"].to_dict()
 
 
 def _month_abbr(dt: date) -> str:
@@ -95,6 +119,8 @@ def download_old_bhavcopy(dt: date, timeout: float = 60.0) -> Optional[pd.DataFr
     df["exchange"] = "NSE"
     df["series"] = df["series"].astype(str).str.strip()
     df["symbol"] = df["symbol"].astype(str).str.strip()
+    name_map = _nse_name_map(timeout=timeout)
+    df["name"] = df["symbol"].map(name_map)
     df = df[df["series"].isin(["EQ", "BE"])].copy()
     return df
 
@@ -144,9 +170,11 @@ def download_recent_bhavcopy(dt: date, timeout: float = 60.0) -> Optional[pd.Dat
     # NSE CSVs sometimes pad series values with spaces
     df["series"] = df["series"].astype(str).str.strip()
     df["symbol"] = df["symbol"].astype(str).str.strip()
-    # Map symbol to ISIN (recent full file does not include ISIN)
-    isin_map = _nse_isin_map()
+    # Map symbol to ISIN and company name (recent full file does not include ISIN or company name)
+    isin_map = _nse_isin_map(timeout=timeout)
+    name_map = _nse_name_map(timeout=timeout)
     df["isin"] = df["symbol"].map(isin_map)
+    df["name"] = df["symbol"].map(name_map)
     before = len(df)
     df = df.dropna(subset=["isin"]).copy()
     if len(df) < before:
