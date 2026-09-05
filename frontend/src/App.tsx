@@ -1,14 +1,19 @@
-import { HashRouter, Routes, Route, NavLink } from "react-router-dom"
 import { useEffect, useState } from "react"
+import { HashRouter, NavLink, Route, Routes } from "react-router-dom"
+
+import Backtest from "@/pages/Backtest"
 import Dashboard from "@/pages/Dashboard"
 import Screener from "@/pages/Screener"
 import StockDetail from "@/pages/StockDetail"
-import Backtest from "@/pages/Backtest"
+
+const navigation = [
+  { to: "/", label: "Today", end: true },
+  { to: "/screener", label: "Screener" },
+  { to: "/backtest", label: "Backtest" },
+]
 
 function Layout({ children }: { children: React.ReactNode }) {
-  const [darkMode, setDarkMode] = useState(() => {
-    return localStorage.getItem("theme") === "dark"
-  })
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("theme") === "dark")
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode)
@@ -16,56 +21,51 @@ function Layout({ children }: { children: React.ReactNode }) {
   }, [darkMode])
 
   return (
-    <div className="min-h-screen flex">
-      <aside className="w-56 border-r bg-muted/30 p-4 hidden md:block">
-        <div className="flex items-center justify-between mb-6">
-          <div className="font-bold text-lg">Open Breakout</div>
-
+    <div className="min-h-screen">
+      <a className="skip-link" href="#main-content">Skip to content</a>
+      <header className="sticky top-0 z-20 border-b border-border/80 bg-background/95 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 sm:px-6">
+          <NavLink to="/" end className="shrink-0 text-sm font-semibold tracking-[-0.02em] text-foreground">
+            Open Breakout
+          </NavLink>
+          <span className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
+          <nav className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" aria-label="Primary">
+            {navigation.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  [
+                    "rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    isActive ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  ].join(" ")
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+          <span className="hidden text-xs text-muted-foreground md:inline">Local research</span>
           <button
-            onClick={() => setDarkMode(!darkMode)}
-            className="px-2 py-1 rounded-md hover:bg-muted text-sm"
-            aria-label="Toggle theme"
+            type="button"
+            onClick={() => setDarkMode((value) => !value)}
+            className="grid size-9 shrink-0 place-items-center rounded-md border border-border text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-label={darkMode ? "Use light theme" : "Use dark theme"}
+            title={darkMode ? "Use light theme" : "Use dark theme"}
           >
-            {darkMode ? "☀️" : "🌙"}
+            <span aria-hidden="true">{darkMode ? "☀" : "◐"}</span>
           </button>
         </div>
-
-        <nav className="space-y-2">
-          <NavLink
-            to="/"
-            className={({ isActive }) =>
-              `block px-3 py-2 rounded-md text-sm font-medium ${isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`
-            }
-          >
-            Dashboard
-          </NavLink>
-
-          <NavLink
-            to="/screener"
-            className={({ isActive }) =>
-              `block px-3 py-2 rounded-md text-sm font-medium ${isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`
-            }
-          >
-            Screener
-          </NavLink>
-
-          <NavLink
-            to="/backtest"
-            className={({ isActive }) =>
-              `block px-3 py-2 rounded-md text-sm font-medium ${isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`
-            }
-          >
-            Backtest
-          </NavLink>
-        </nav>
-      </aside>
-
-      <main className="flex-1 overflow-auto">{children}</main>
+      </header>
+      <main id="main-content" className="mx-auto w-full max-w-[1440px] px-4 py-7 sm:px-6 sm:py-10">
+        {children}
+      </main>
     </div>
   )
 }
 
-function App() {
+export default function App() {
   return (
     <HashRouter>
       <Layout>
@@ -79,5 +79,3 @@ function App() {
     </HashRouter>
   )
 }
-
-export default App
