@@ -104,7 +104,14 @@ export default function Backtest() {
     setError(null)
 
     try {
-      const query = new URLSearchParams({ ...params, entry: "close" } as Record<string, string>).toString()
+      const query = new URLSearchParams({
+        stop: String(params.stop),
+        sell: params.sell,
+        risk: String(params.risk),
+        maxpos: String(params.maxpos),
+        market: params.market,
+        entry: "close",
+      }).toString()
       const response = await fetch(`${API_BASE_URL}/backtest?${query}`)
       if (!response.ok) throw new Error(`The backtest could not run (${response.status}).`)
       setResult(await response.json())
