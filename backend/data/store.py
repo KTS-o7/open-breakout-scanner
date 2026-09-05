@@ -94,7 +94,7 @@ def upsert_bars(df: pd.DataFrame) -> None:
     df = df[[c for c in cols if c in df.columns]].copy()
     df["dt"] = pd.to_datetime(df["dt"])
 
-    now = pd.Timestamp.utcnow().isoformat()
+    now = pd.Timestamp.now("UTC").isoformat()
     registry_rows = []
     for isin, grp in df.groupby("isin"):
         existing = read_bars(isin)
