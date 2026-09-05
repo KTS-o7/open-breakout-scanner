@@ -170,15 +170,15 @@ export default function Screener() {
           <div className="grid gap-3 md:hidden">
             {displayedRows.map((stock) => <StockCard key={stock.isin} stock={stock} />)}
           </div>
-          <div className="hidden overflow-x-auto border border-border bg-card/70 md:block">
-            <table className="w-full min-w-[860px] border-collapse text-sm">
+          <div className="hidden border border-border bg-card/70 md:block">
+            <table className="w-full table-fixed border-collapse text-sm">
               <caption className="sr-only">Liquid equities matching the active screener filters</caption>
               <thead className="sticky top-16 z-10 bg-muted text-muted-foreground">
                 <tr>
                   {columns.map((column) => {
                     const sorted = sort.key === column.key
                     return (
-                      <th key={column.key} scope="col" aria-sort={sorted ? (sort.dir === "asc" ? "ascending" : "descending") : "none"} className={`${column.align} border-b border-border px-4 py-3 text-xs font-medium uppercase tracking-[0.1em]`}>
+                      <th key={column.key} scope="col" aria-sort={sorted ? (sort.dir === "asc" ? "ascending" : "descending") : "none"} className={`${column.key === "symbol" ? "w-[28%]" : ""} ${column.align} border-b border-border px-3 py-3 text-xs font-medium uppercase tracking-[0.1em] lg:px-4`}>
                         <button type="button" onClick={() => updateSort(column.key)} className="inline-flex items-center gap-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                           {column.label}<span aria-hidden="true">{sorted ? (sort.dir === "asc" ? "↑" : "↓") : "↕"}</span>
                         </button>
@@ -190,18 +190,18 @@ export default function Screener() {
               <tbody>
                 {displayedRows.map((stock) => (
                   <tr key={stock.isin} className="[content-visibility:auto] border-b border-border/70 transition-colors hover:bg-muted/50">
-                    <th scope="row" className="sticky left-0 bg-card/95 px-4 py-3 text-left font-normal backdrop-blur">
+                    <th scope="row" className="bg-card/95 px-3 py-3 text-left font-normal lg:px-4">
                       <Link to={`/stock/${stock.isin}`} className="font-semibold hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">{stock.symbol || stock.isin}</Link>
                       <span className="ml-2 font-data text-[11px] text-muted-foreground">{stock.exchange}</span>
                       {stock.name && <span className="mt-1 block max-w-48 truncate text-xs text-muted-foreground">{stock.name}</span>}
                     </th>
-                    <td className="px-4 py-3 text-right font-data">{formatNumber(stock.close, 2)}</td>
-                    <td className="px-4 py-3 text-right font-data">{formatNumber(stock.rs)}</td>
-                    <td className="px-4 py-3 text-right font-data">{formatNumber(stock.vol_ratio, 2)}×</td>
-                    <td className="px-4 py-3 text-right font-data">{formatNumber(stock.from_ath_pct, 1)}%</td>
-                    <td className="px-4 py-3 text-center"><StockStatus value={stock.in_uptrend} positive="Yes" label="Trend" /></td>
-                    <td className="px-4 py-3 text-center"><StockStatus value={stock.leader} positive="Yes" label="RS leader" /></td>
-                    <td className="px-4 py-3 text-center"><StockStatus value={stock.breakout} positive="Now" label="Breakout" /></td>
+                    <td className="px-3 py-3 text-right font-data lg:px-4">{formatNumber(stock.close, 2)}</td>
+                    <td className="px-3 py-3 text-right font-data lg:px-4">{formatNumber(stock.rs)}</td>
+                    <td className="px-3 py-3 text-right font-data lg:px-4">{formatNumber(stock.vol_ratio, 2)}×</td>
+                    <td className="px-3 py-3 text-right font-data lg:px-4">{formatNumber(stock.from_ath_pct, 1)}%</td>
+                    <td className="px-3 py-3 text-center lg:px-4"><StockStatus value={stock.in_uptrend} positive="Yes" label="Trend" /></td>
+                    <td className="px-3 py-3 text-center lg:px-4"><StockStatus value={stock.leader} positive="Yes" label="RS leader" /></td>
+                    <td className="px-3 py-3 text-center lg:px-4"><StockStatus value={stock.breakout} positive="Now" label="Breakout" /></td>
                   </tr>
                 ))}
               </tbody>
