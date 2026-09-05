@@ -13,6 +13,25 @@ interface BTResult {
   maxpos: number
 }
 
+function exportCsv(result: BTResult) {
+  const cols = ["symbol", "isin", "entry", "buy", "exit", "sell", "return_pct", "days", "rs", "invested", "open", "why"] as const
+  const esc = (v: any) => {
+    const s = v == null ? "" : String(v)
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const rows = (result.portfolio.log || []).map((t: any) => [
+    t.sym || t.isin, t.isin, t.bo ?? "", t.buy ?? "", t.exit ?? "", t.sell ?? "",
+    t.ret ?? "", t.days ?? "", t.rs ?? "", t.invested ?? "", t.open ?? "", t.why ?? "",
+  ])
+  const csv = [cols.join(","), ...rows.map((r) => r.map(esc).join(","))].join("\n")
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }))
+  const a = document.createElement("a")
+  a.href = url
+  a.download = "backtest-trades.csv"
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export default function Backtest() {
   const [params, setParams] = useState({ stop: 8, sell: "ma50", risk: 1.5, maxpos: 5, market: "all", entry: "close" })
   const [result, setResult] = useState<BTResult | null>(null)
@@ -93,7 +112,12 @@ export default function Backtest() {
           </div>
 
           <Card>
-            <CardHeader><CardTitle>Trade log</CardTitle></CardHeader>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Trade log</CardTitle>
+                <Button variant="outline" size="sm" disabled={!result.portfolio.log?.length} onClick={() => exportCsv(result)}>Export CSV</Button>
+              </div>
+            </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
