@@ -1,174 +1,267 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import MetricCard from "@/components/MetricCard"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+
+type BacktestParams = {
+  stop: number
+  sell: "ma50" | "ma150" | "t25"
+  risk: number
+  maxpos: number
+  market: "all" | "strong"
+}
+
+type Trade = {
+  isin: string
+  sym?: string
+  bo?: string
+  buy: number
+  exit?: string
+  sell?: number
+  ret: number
+  days: number
+  rs?: number
+  invested?: number
+  open: boolean
+  why?: string
+}
 
 interface BTResult {
   total: { n: number; win: number; mean: number; avgWin: number; avgLoss: number; days: number }
   byYear: { yr: number; n: number; win: number; mean: number }[]
-  portfolio: { start: number; end: number; mult: number; cagr: number; maxdd: number; log: any[] }
+  portfolio: { start: number; end: number; mult: number; cagr: number; maxdd: number; log: Trade[] }
   stop: number
   sell: string
   risk: number
   maxpos: number
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api"
+
+function formatCurrency(value: number | undefined) {
+  if (value == null || !Number.isFinite(value)) return "—"
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+function formatPercent(value: number | undefined) {
+  return value == null || !Number.isFinite(value) ? "—" : `${value.toFixed(1)}%`
+}
+
 function exportCsv(result: BTResult) {
   const cols = ["symbol", "isin", "entry", "buy", "exit", "sell", "return_pct", "days", "rs", "invested", "open", "why"] as const
-  const esc = (v: any) => {
-    const s = v == null ? "" : String(v)
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  const esc = (value: unknown) => {
+    const text = value == null ? "" : String(value)
+    return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
   }
-  const rows = (result.portfolio.log || []).map((t: any) => [
-    t.sym || t.isin, t.isin, t.bo ?? "", t.buy ?? "", t.exit ?? "", t.sell ?? "",
-    t.ret ?? "", t.days ?? "", t.rs ?? "", t.invested ?? "", t.open ?? "", t.why ?? "",
+  const rows = (result.portfolio.log || []).map((trade) => [
+    trade.sym || trade.isin,
+    trade.isin,
+    trade.bo ?? "",
+    trade.buy ?? "",
+    trade.exit ?? "",
+    trade.sell ?? "",
+    trade.ret ?? "",
+    trade.days ?? "",
+    trade.rs ?? "",
+    trade.invested ?? "",
+    trade.open ?? "",
+    trade.why ?? "",
   ])
-  const csv = [cols.join(","), ...rows.map((r) => r.map(esc).join(","))].join("\n")
+  const csv = [cols.join(","), ...rows.map((row) => row.map(esc).join(","))].join("\n")
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }))
-  const a = document.createElement("a")
-  a.href = url
-  a.download = "backtest-trades.csv"
-  a.click()
+  const link = document.createElement("a")
+  link.href = url
+  link.download = "backtest-trades.csv"
+  link.click()
   URL.revokeObjectURL(url)
 }
 
+function ConfigurationField({ children, label, htmlFor }: { children: React.ReactNode; label: string; htmlFor: string }) {
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-medium text-muted-foreground" htmlFor={htmlFor}>{label}</label>
+      {children}
+    </div>
+  )
+}
+
+const selectClassName = "h-10 w-full border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+
 export default function Backtest() {
-  const [params, setParams] = useState({ stop: 8, sell: "ma50", risk: 1.5, maxpos: 5, market: "all", entry: "close" })
+  const [params, setParams] = useState<BacktestParams>({ stop: 8, sell: "ma50", risk: 1.5, maxpos: 5, market: "all" })
   const [result, setResult] = useState<BTResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const run = () => {
+  const run = async () => {
     setLoading(true)
     setError(null)
-    const qs = new URLSearchParams(params as any).toString()
-    fetch(`${import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api"}/backtest?${qs}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.statusText)))
-      .then((d) => setResult(d))
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false))
+
+    try {
+      const query = new URLSearchParams({ ...params, entry: "close" } as Record<string, string>).toString()
+      const response = await fetch(`${API_BASE_URL}/backtest?${query}`)
+      if (!response.ok) throw new Error(`The backtest could not run (${response.status}).`)
+      setResult(await response.json())
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "The backtest could not run.")
+    } finally {
+      setLoading(false)
+    }
   }
 
-  useEffect(() => {
-    run()
-  }, [])
-
-  const closed = useMemo(() => (result?.portfolio?.log || []).filter((t: any) => !t.open), [result])
+  const closedTrades = useMemo(() => (result?.portfolio?.log || []).filter((trade) => !trade.open), [result])
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Backtest</h1>
+    <div className="mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6 lg:px-8">
+      <header className="max-w-3xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Rules laboratory</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-foreground sm:text-4xl">Validate the rules.</h1>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">Choose the risk rules, then run the complete local history. No calculation starts just by opening this page.</p>
+      </header>
 
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-3 items-end">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">Stop %</label>
-              <select className="border rounded px-2 py-1" value={params.stop} onChange={(e) => setParams({ ...params, stop: Number(e.target.value) })}>
-                <option value={7}>7%</option>
-                <option value={8}>8%</option>
-                <option value={10}>10%</option>
-              </select>
+      <Card className="border-border shadow-none">
+        <CardContent className="p-5 sm:p-6">
+          <form aria-busy={loading} className="space-y-5" onSubmit={(event) => { event.preventDefault(); void run() }}>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <ConfigurationField htmlFor="stop" label="Initial stop">
+                <select className={selectClassName} id="stop" name="stop" value={params.stop} onChange={(event) => setParams({ ...params, stop: Number(event.target.value) })}>
+                  <option value={7}>7%</option>
+                  <option value={8}>8%</option>
+                  <option value={10}>10%</option>
+                </select>
+              </ConfigurationField>
+              <ConfigurationField htmlFor="sell" label="Exit rule">
+                <select className={selectClassName} id="sell" name="sell" value={params.sell} onChange={(event) => setParams({ ...params, sell: event.target.value as BacktestParams["sell"] })}>
+                  <option value="ma50">Close below 50-day</option>
+                  <option value="ma150">Close below 30-week</option>
+                  <option value="t25">Take profit at 25%</option>
+                </select>
+              </ConfigurationField>
+              <ConfigurationField htmlFor="risk" label="Account risk">
+                <select className={selectClassName} id="risk" name="risk" value={params.risk} onChange={(event) => setParams({ ...params, risk: Number(event.target.value) })}>
+                  <option value={1}>1%</option>
+                  <option value={1.5}>1.5%</option>
+                  <option value={2}>2%</option>
+                </select>
+              </ConfigurationField>
+              <ConfigurationField htmlFor="maxpos" label="Maximum positions">
+                <select className={selectClassName} id="maxpos" name="maxpos" value={params.maxpos} onChange={(event) => setParams({ ...params, maxpos: Number(event.target.value) })}>
+                  <option value={3}>3</option>
+                  <option value={5}>5</option>
+                  <option value={8}>8</option>
+                  <option value={10}>10</option>
+                </select>
+              </ConfigurationField>
+              <ConfigurationField htmlFor="market" label="Market filter">
+                <select className={selectClassName} id="market" name="market" value={params.market} onChange={(event) => setParams({ ...params, market: event.target.value as BacktestParams["market"] })}>
+                  <option value="all">All conditions</option>
+                  <option value="strong">Strong market only</option>
+                </select>
+              </ConfigurationField>
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">Sell rule</label>
-              <select className="border rounded px-2 py-1" value={params.sell} onChange={(e) => setParams({ ...params, sell: e.target.value })}>
-                <option value="ma50">Trail 50-day</option>
-                <option value="ma150">Trail 30-week</option>
-                <option value="t25">Take +25%</option>
-              </select>
+
+            <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
+              <Button disabled={loading} type="submit">{loading ? "Running…" : "Run backtest"}</Button>
+              <p className="text-xs text-muted-foreground">Entries are modelled at the signal-day close. A full run can take a few minutes.</p>
             </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">Risk %</label>
-              <select className="border rounded px-2 py-1" value={params.risk} onChange={(e) => setParams({ ...params, risk: Number(e.target.value) })}>
-                <option value={1}>1%</option>
-                <option value={1.5}>1.5%</option>
-                <option value={2}>2%</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">Max pos</label>
-              <select className="border rounded px-2 py-1" value={params.maxpos} onChange={(e) => setParams({ ...params, maxpos: Number(e.target.value) })}>
-                <option value={3}>3</option>
-                <option value={5}>5</option>
-                <option value={8}>8</option>
-                <option value={10}>10</option>
-              </select>
-            </div>
-            <Button onClick={run} disabled={loading}>{loading ? "Running…" : "Run scan ▸"}</Button>
-          </div>
+          </form>
         </CardContent>
       </Card>
 
-      {error && <div className="text-destructive">{error}</div>}
+      <div aria-live="polite" className="sr-only">{loading ? "Running the full local universe." : ""}</div>
+
+      {error && <div className="border-l-2 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive" role="alert">{error}</div>}
 
       {loading && !result && (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Card key={i}>
-                <CardContent className="p-4 space-y-2">
-                  <Skeleton className="h-3 w-16" />
-                  <Skeleton className="h-8 w-20" />
-                </CardContent>
-              </Card>
+        <section aria-label="Backtest loading" className="space-y-4">
+          <p className="text-sm text-muted-foreground">Running the full local universe. This can take a few minutes.</p>
+          <div className="grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-5">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div className="bg-card p-4" key={index}>
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="mt-3 h-7 w-28" />
+              </div>
             ))}
           </div>
-          <Card>
-            <CardHeader>
-              <Skeleton className="h-6 w-24" />
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} className="h-5 w-full" />
-              ))}
-            </CardContent>
-          </Card>
-        </>
+        </section>
+      )}
+
+      {!result && !loading && !error && (
+        <section className="border border-dashed border-border px-5 py-8 text-sm text-muted-foreground">
+          Set the rules above, then run the test when you are ready.
+        </section>
       )}
 
       {result && (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Multiple</div><div className="text-2xl font-bold">{result.portfolio.mult.toFixed(2)}×</div></CardContent></Card>
-            <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">CAGR</div><div className="text-2xl font-bold">{result.portfolio.cagr.toFixed(1)}%</div></CardContent></Card>
-            <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Max DD</div><div className="text-2xl font-bold">{result.portfolio.maxdd.toFixed(1)}%</div></CardContent></Card>
-            <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Win rate</div><div className="text-2xl font-bold">{result.total.win}%</div></CardContent></Card>
+        <section className="space-y-5" aria-labelledby="latest-run-heading">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Latest run</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em] text-foreground" id="latest-run-heading">Portfolio results</h2>
+            </div>
+            {loading && <p className="text-sm text-muted-foreground">Updating results…</p>}
           </div>
 
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Trade log</CardTitle>
-                <Button variant="outline" size="sm" disabled={!result.portfolio.log?.length} onClick={() => exportCsv(result)}>Export CSV</Button>
+          <div className="grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-5">
+            <MetricCard detail={`Started at ${formatCurrency(result.portfolio.start)}`} emphasis label="End equity" value={formatCurrency(result.portfolio.end)} />
+            <MetricCard detail={`${result.total.n} total signals`} label="Closed trades" value={closedTrades.length} />
+            <MetricCard detail="Closed positions only" label="Win rate" value={formatPercent(result.total.win)} />
+            <MetricCard detail="Annualised return" label="CAGR" value={formatPercent(result.portfolio.cagr)} />
+            <MetricCard detail="Peak to trough" label="Max drawdown" value={formatPercent(result.portfolio.maxdd)} />
+          </div>
+
+          <Card className="border-border shadow-none">
+            <CardHeader className="flex flex-row items-center justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
+              <div>
+                <CardTitle className="text-lg tracking-[-0.025em]">Closed trades</CardTitle>
+                <p className="mt-1 text-xs text-muted-foreground">Open positions remain in the exported log.</p>
               </div>
+              <Button variant="outline" size="sm" disabled={!result.portfolio.log?.length} onClick={() => exportCsv(result)}>Export CSV</Button>
             </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-muted-foreground border-b">
-                    <tr><th className="text-left py-2">Symbol</th><th className="text-left py-2">Entry</th><th className="text-left py-2">Exit</th><th className="text-right py-2">Buy</th><th className="text-right py-2">Sell</th><th className="text-right py-2">Return</th><th className="text-right py-2">Days</th><th className="text-left py-2">Why</th></tr>
-                  </thead>
-                  <tbody>
-                    {closed.map((t: any) => (
-                      <tr key={t.isin + t.bo} className="border-b last:border-0">
-                        <td className="py-1 font-medium">{t.sym || t.isin}</td>
-                        <td className="py-1">{t.bo}</td>
-                        <td className="py-1">{t.exit || "open"}</td>
-                        <td className="text-right py-1">{t.buy.toFixed(2)}</td>
-                        <td className="text-right py-1">{t.sell?.toFixed(2) ?? "—"}</td>
-                        <td className={`text-right py-1 ${t.ret > 0 ? "text-green-600" : "text-red-600"}`}>{t.ret.toFixed(2)}%</td>
-                        <td className="text-right py-1">{t.days}</td>
-                        <td className="py-1 text-muted-foreground">{t.why}</td>
+            <CardContent className="p-0">
+              {closedTrades.length === 0 ? (
+                <p className="px-5 py-8 text-sm text-muted-foreground sm:px-6">No positions closed under these rules.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-[780px] w-full border-collapse text-sm">
+                    <thead className="bg-muted/30 text-left text-xs font-medium text-muted-foreground">
+                      <tr>
+                        <th className="px-5 py-3 sm:px-6" scope="col">Stock</th>
+                        <th className="px-3 py-3" scope="col">Entry</th>
+                        <th className="px-3 py-3" scope="col">Exit</th>
+                        <th className="px-3 py-3 text-right" scope="col">Buy</th>
+                        <th className="px-3 py-3 text-right" scope="col">Sell</th>
+                        <th className="px-3 py-3 text-right" scope="col">Return</th>
+                        <th className="px-3 py-3 text-right" scope="col">Days</th>
+                        <th className="px-3 py-3" scope="col">Reason</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {closedTrades.map((trade) => (
+                        <tr className="border-t border-border" key={`${trade.isin}-${trade.bo}`}>
+                          <th className="px-5 py-3 text-left font-medium text-foreground sm:px-6" scope="row">{trade.sym || trade.isin}</th>
+                          <td className="px-3 py-3 font-data text-muted-foreground">{trade.bo}</td>
+                          <td className="px-3 py-3 font-data text-muted-foreground">{trade.exit || "—"}</td>
+                          <td className="px-3 py-3 text-right font-data">{trade.buy.toFixed(2)}</td>
+                          <td className="px-3 py-3 text-right font-data">{trade.sell?.toFixed(2) ?? "—"}</td>
+                          <td className={`px-3 py-3 text-right font-data ${trade.ret > 0 ? "text-primary" : "text-destructive"}`}>{formatPercent(trade.ret)}</td>
+                          <td className="px-3 py-3 text-right font-data">{trade.days}</td>
+                          <td className="px-3 py-3 text-muted-foreground">{trade.why || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
-        </>
+        </section>
       )}
     </div>
   )
