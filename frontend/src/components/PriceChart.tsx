@@ -13,16 +13,19 @@ function valuesFor(bars: OhlcBar[]) {
   return bars.flatMap((bar) => [bar.close, bar.ma50, bar.ma200].filter((value): value is number => typeof value === "number" && Number.isFinite(value)))
 }
 
-function pathFor(bars: OhlcBar[], field: "close" | "ma50" | "ma200", min: number, max: number) {
+export function chartPath(bars: Pick<OhlcBar, "close" | "ma50" | "ma200">[], field: "close" | "ma50" | "ma200", min: number, max: number) {
   const chartWidth = WIDTH - PADDING.left - PADDING.right
   const chartHeight = HEIGHT - PADDING.top - PADDING.bottom
   const range = max - min || 1
+  let hasStarted = false
   return bars.flatMap((bar, index) => {
     const value = bar[field]
     if (typeof value !== "number" || !Number.isFinite(value)) return []
     const x = PADDING.left + (index / Math.max(bars.length - 1, 1)) * chartWidth
     const y = PADDING.top + ((max - value) / range) * chartHeight
-    return [`${index === 0 ? "M" : "L"}${x.toFixed(1)} ${y.toFixed(1)}`]
+    const command = hasStarted ? "L" : "M"
+    hasStarted = true
+    return [`${command}${x.toFixed(1)} ${y.toFixed(1)}`]
   }).join(" ")
 }
 
@@ -60,9 +63,9 @@ export default function PriceChart({ bars, symbol }: PriceChartProps) {
           const value = max - position * (max - min)
           return <g key={position}><line x1={PADDING.left} x2={WIDTH - PADDING.right} y1={y} y2={y} className="stroke-border" strokeWidth="1" /><text x={PADDING.left - 8} y={y + 3} textAnchor="end" className="fill-muted-foreground text-[10px]">{value.toFixed(0)}</text></g>
         })}
-        <path d={pathFor(bars, "ma200", min, max)} className="fill-none stroke-muted-foreground" strokeWidth="1.5" strokeDasharray="4 4" />
-        <path d={pathFor(bars, "ma50", min, max)} className="fill-none stroke-foreground/60" strokeWidth="1.5" />
-        <path d={pathFor(bars, "close", min, max)} className="fill-none stroke-primary" strokeWidth="2.25" />
+        <path d={chartPath(bars, "ma200", min, max)} className="fill-none stroke-muted-foreground" strokeWidth="1.5" strokeDasharray="4 4" />
+        <path d={chartPath(bars, "ma50", min, max)} className="fill-none stroke-foreground/60" strokeWidth="1.5" />
+        <path d={chartPath(bars, "close", min, max)} className="fill-none stroke-primary" strokeWidth="2.25" />
         <text x={PADDING.left} y={HEIGHT - 8} className="fill-muted-foreground text-[10px]">{bars[0]?.dt}</text>
         <text x={WIDTH - PADDING.right} y={HEIGHT - 8} textAnchor="end" className="fill-muted-foreground text-[10px]">{labelDate}</text>
       </svg>
