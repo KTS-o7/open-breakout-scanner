@@ -47,7 +47,7 @@ def get_breakouts(days: int = Query(1, ge=1, le=5)) -> List[models.BreakoutEvent
     snap = _latest_snapshot()
     events = []
     for s in snap["stocks"]:
-        if not s.get("breakout"):
+        if not s.get("breakout") or not s.get("liquid"):
             continue
         events.append(
             models.BreakoutEvent(

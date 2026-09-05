@@ -21,7 +21,10 @@ export default function Dashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  const breakouts = useMemo(() => (snap?.stocks || []).filter((s) => s.breakout).slice(0, 50), [snap])
+  const breakouts = useMemo(
+    () => (snap?.stocks || []).filter((s) => s.liquid && s.breakout).slice(0, 50),
+    [snap]
+  )
 
   if (loading) {
     return (
