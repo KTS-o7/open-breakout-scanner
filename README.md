@@ -41,6 +41,21 @@ Open http://localhost:5173.
 
 To keep data current, run `make update` daily after market close, then `make snapshot`.
 
+## Docker
+
+Build and run the whole app (frontend built and served by the backend) in one container:
+
+```bash
+docker build -t open-breakout-scanner .
+docker run -p 8000:8000 open-breakout-scanner
+```
+
+Open http://localhost:8000. The image contains no market data — mount your local `data/` directory (or a volume with the same layout) to enable the API endpoints that need snapshots/parquet:
+
+```bash
+docker run -p 8000:8000 -v "$(pwd)/data:/app/data" open-breakout-scanner
+```
+
 ## API endpoints
 
 - `GET /api/health` — market health counts
