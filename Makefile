@@ -1,4 +1,4 @@
-.PHONY: install backend frontend dev test snapshot update
+.PHONY: install backend frontend dev test snapshot update backfill
 
 install:
 	python -m venv .venv

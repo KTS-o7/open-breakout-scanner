@@ -14,7 +14,7 @@ from sqlalchemy import create_engine, text
 
 logger = logging.getLogger(__name__)
 
-ROOT = Path(__file__).resolve().parents[3]  # repo root
+ROOT = Path(__file__).resolve().parents[2]  # repo root
 DATA_DIR = ROOT / "data"
 PARQUET_DIR = DATA_DIR / "parquet"
 RAW_DIR = DATA_DIR / "raw"
