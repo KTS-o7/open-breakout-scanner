@@ -10,7 +10,7 @@ A self-hosted, open-source momentum/breakout scanner for Indian equities. Inspir
 - Stores per-ISIN OHLCV history in Parquet and a symbol registry in SQLite.
 - Computes relative strength (RS) percentile, moving-average trends, and breakout signals.
 - Serves a FastAPI backend and a React + shadcn/ui frontend.
-- Provides a **Dashboard**, **Screener**, **Stock Detail**, and a **Backtest** engine.
+- Provides a **Dashboard**, **Screener**, **Stock Detail**, **Backtest**, and local-only **Paper account**.
 
 ## Tech stack
 
@@ -54,6 +54,18 @@ With `make backend` running, use the dashboard to review the current liquid brea
 
 Use the Backtest page to validate the current rules against the locally stored history. A full-universe run currently takes about three minutes on this machine. It is a research check, not a forecast or a trading recommendation. After changing the code, run `make test` before relying on the result.
 
+## Local paper account
+
+Use **Paper account** to practise cash-equity delivery trades without a broker account or live order. It starts with ₹1,00,000 virtual cash and only accepts stocks that are liquid breakouts in the current local snapshot.
+
+1. Run `make update` and `make snapshot` after market close.
+2. Review a candidate in Screener or Stock Detail. A qualifying stock has a **Plan paper trade** link.
+3. In Paper account, choose the candidate and set the maximum price you would pay and the stop price. Selecting **Record paper plan** is the explicit approval step.
+4. The simulator checks the next available local daily bar. It fills only when the next open is at or below the maximum entry. A gap above the maximum entry is skipped. A gap through the stop exits at that opening price.
+5. Re-run the update and snapshot routine after each close to keep the paper ledger in step with locally stored market data.
+
+The paper ledger is stored in `data/paper.db`, which stays on your machine and is ignored by Git. It never connects to a broker, transmits credentials, or sends an order. It reserves 0.15% on each side for estimated costs and 20% of profitable short-term simulated exits as a provisional tax reserve. These are learning assumptions, not a contract note or a final tax calculation: charges vary by broker and final tax depends on your circumstances, losses, cess and other factors.
+
 ## Docker
 
 Build and run the whole app (frontend built and served by the backend) in one container:
@@ -77,6 +89,8 @@ docker run -p 8000:8000 -v "$(pwd)/data:/app/data" open-breakout-scanner
 - `GET /api/ohlc/{isin}` — OHLCV + MAs
 - `GET /api/stock/{isin}` — stock row + recent bars
 - `GET /api/backtest?stop=8&sell=ma50&risk=1.5&maxpos=5&market=all&entry=close` — run a backtest
+- `GET /api/paper` — local paper account and its synchronised ledger
+- `POST /api/paper/trades` — explicitly record one qualified paper plan
 
 ## Project layout
 
@@ -119,6 +133,7 @@ Results include per-year stats, total stats, max drawdown, CAGR, and a full trad
 - Real trading costs (slippage, STT, brokerage, STCG tax) are not modeled.
 - Survivorship bias exists because today's listings are scanned backward.
 - Base detection / X-ray view and sector rotation are not yet implemented.
+- The Paper account uses end-of-day bars and a simplified 0.15% per-side cost estimate. It cannot reproduce intraday prices, exchange queue priority, broker-specific charges, all taxes or live execution.
 
 ## License
 

@@ -48,3 +48,23 @@ def test_breakouts_excludes_illiquid_signals(monkeypatch):
     events = routes.get_breakouts()
 
     assert [event.sym for event in events] == ["LIQUID"]
+
+
+def test_paper_trade_route_rejects_an_ineligible_snapshot_row(monkeypatch):
+    monkeypatch.setattr(
+        routes,
+        "_latest_snapshot",
+        lambda: {
+            "as_of": "2026-09-04",
+            "stocks": [{"isin": "INE000000001", "liquid": True, "breakout": False}],
+        },
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/paper/trades",
+        json={"isin": "INE000000001", "maximumEntry": 102, "stopPrice": 92},
+    )
+
+    assert response.status_code == 422
+    assert "eligible liquid breakout" in response.json()["detail"]

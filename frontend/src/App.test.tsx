@@ -9,4 +9,5 @@ it("keeps primary routes reachable from navigation", () => {
   expect(screen.getByRole("link", { name: "Today" })).toBeVisible()
   expect(screen.getByRole("link", { name: "Screener" })).toBeVisible()
   expect(screen.getByRole("link", { name: "Backtest" })).toBeVisible()
+  expect(screen.getByRole("link", { name: "Paper account" })).toBeVisible()
 })

@@ -6,6 +6,7 @@ __pycache__/
 data/parquet/
 data/raw/
 data/obs.db
+data/paper.db
 node_modules/
 dist/
 build/

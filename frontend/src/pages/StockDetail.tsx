@@ -51,6 +51,11 @@ export default function StockDetail() {
           <div className="flex flex-wrap gap-2">
             <SignalBadge tone={data.breakout ? "signal" : "neutral"}>{data.breakout ? "Breakout active" : "No active breakout"}</SignalBadge>
             <SignalBadge>{data.liquid ? "Liquid" : "Below liquidity threshold"}</SignalBadge>
+            {data.liquid && data.breakout && (
+              <Link className="rounded-full border border-primary px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" to={`/paper?isin=${data.isin}`}>
+                Plan paper trade
+              </Link>
+            )}
           </div>
         </div>
       </header>

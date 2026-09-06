@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Query
 from backend.api import models
 from backend.compute.backtest import BacktestParams, run_backtest
 from backend.compute.indicators import add_mas
+from backend.compute import paper
 from backend.data.store import read_bars
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,25 @@ def get_backtest(
     if not result.get("ready"):
         raise HTTPException(status_code=503, detail=result.get("error", "backtest not ready"))
     return models.BacktestResponse(**result)
+
+
+@router.get("/paper", response_model=models.PaperAccount)
+def get_paper_account() -> models.PaperAccount:
+    return models.PaperAccount(**paper.get_account())
+
+
+@router.post("/paper/trades", response_model=models.PaperAccount)
+def create_paper_trade(payload: models.PaperTradeRequest) -> models.PaperAccount:
+    try:
+        account = paper.plan_trade(
+            _latest_snapshot(),
+            payload.isin,
+            payload.maximumEntry,
+            payload.stopPrice,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return models.PaperAccount(**account)
 
 
 def _to_float(v) -> Optional[float]:
