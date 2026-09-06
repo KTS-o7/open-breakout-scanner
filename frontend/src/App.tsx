@@ -3,12 +3,14 @@ import { HashRouter, NavLink, Route, Routes } from "react-router-dom"
 
 import Backtest from "@/pages/Backtest"
 import Dashboard from "@/pages/Dashboard"
+import PaperTrading from "@/pages/PaperTrading"
 import Screener from "@/pages/Screener"
 import StockDetail from "@/pages/StockDetail"
 
 const navigation = [
   { to: "/", label: "Today", end: true },
   { to: "/screener", label: "Screener" },
+  { to: "/paper", label: "Paper account" },
   { to: "/backtest", label: "Backtest" },
 ]
 
@@ -73,6 +75,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/screener" element={<Screener />} />
+          <Route path="/paper" element={<PaperTrading />} />
           <Route path="/backtest" element={<Backtest />} />
           <Route path="/stock/:isin" element={<StockDetail />} />
         </Routes>

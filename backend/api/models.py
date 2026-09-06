@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Health(BaseModel):
@@ -90,3 +90,46 @@ class BacktestResponse(BaseModel):
     total: BacktestYearRow
     byYear: List[BacktestYearRow]
     portfolio: dict
+
+
+class PaperTradeRequest(BaseModel):
+    isin: str
+    maximumEntry: float = Field(gt=0)
+    stopPrice: float = Field(gt=0)
+
+
+class PaperTrade(BaseModel):
+    id: int
+    isin: str
+    symbol: str
+    status: str
+    plannedOn: str
+    maximumEntry: float
+    stopPrice: float
+    quantity: int
+    entryDate: Optional[str] = None
+    entryPrice: Optional[float] = None
+    exitDate: Optional[str] = None
+    exitPrice: Optional[float] = None
+    exitReason: Optional[str] = None
+    netPnl: Optional[float] = None
+    taxReserve: Optional[float] = None
+    lastClose: Optional[float] = None
+
+
+class PaperAccount(BaseModel):
+    initialCapital: float
+    cash: float
+    reservedCash: float
+    availableCash: float
+    marketValue: float
+    equity: float
+    afterTaxEquity: float
+    taxReserve: float
+    plannedRisk: float
+    riskPct: float
+    maxPositions: int
+    maxPositionPct: float
+    estimatedCostPct: float
+    taxReservePct: float
+    trades: List[PaperTrade]
