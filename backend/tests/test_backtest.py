@@ -200,6 +200,15 @@ def test_stop_loss_fills_at_buy_times_0_92(monkeypatch):
     assert tr["why"] == "\u22128.0% stop"  # U+2212 minus sign, matching the engine
 
 
+def test_exit_returns_sale_proceeds_to_portfolio_cash(monkeypatch):
+    res = _run_backtest(monkeypatch, risk=1.5)
+    tr = res["portfolio"]["log"][0]
+    shares = int(tr["invested"] / tr["buy"])
+    expected_end = 1_000_000.0 + shares * (tr["sell"] - tr["buy"])
+
+    assert res["portfolio"]["end"] == round(expected_end, 2)
+
+
 # ---------------------------------------------------------------------------
 # (d) _summarize stats
 # ---------------------------------------------------------------------------

@@ -93,7 +93,7 @@ def test_build_snapshot_merges_security_master_names(monkeypatch, tmp_path):
         }
     ])
 
-    result = build_snapshot(as_of=date(2024, 4, 1), security_master_df=mock_master)
+    result = build_snapshot(as_of=date(2024, 3, 29), security_master_df=mock_master)
     assert len(result["stocks"]) == 1
     stock = result["stocks"][0]
     assert stock["isin"] == "INE123456789"
@@ -121,10 +121,57 @@ def test_build_snapshot_fallback_to_registry_name(monkeypatch, tmp_path):
     # Empty security master
     empty_master = pd.DataFrame(columns=["symbol", "name", "series", "isin", "exchange"])
 
-    result = build_snapshot(as_of=date(2024, 4, 1), security_master_df=empty_master)
+    result = build_snapshot(as_of=date(2024, 3, 29), security_master_df=empty_master)
     assert len(result["stocks"]) == 1
     stock = result["stocks"][0]
     assert stock["name"] == "Registry Name Ltd"
+
+
+def test_build_snapshot_defaults_to_latest_stored_trading_date(monkeypatch, tmp_path):
+    monkeypatch.setattr(store, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setattr(store, "PARQUET_DIR", tmp_path / "data" / "parquet")
+    monkeypatch.setattr(store, "DB_PATH", tmp_path / "data" / "obs.db")
+    (tmp_path / "data" / "parquet").mkdir(parents=True, exist_ok=True)
+    store.engine = store.create_engine(f"sqlite:///{tmp_path / 'data' / 'obs.db'}")
+    store.init_registry()
+
+    from backend.compute import snapshot as snap_module
+    monkeypatch.setattr(snap_module, "SNAPSHOT_DIR", tmp_path / "snapshots")
+    (tmp_path / "snapshots").mkdir(parents=True, exist_ok=True)
+
+    bars = make_test_bars()
+    bars["isin"] = "INE123456789"
+    store.upsert_bars(bars)
+
+    result = build_snapshot(security_master_df=pd.DataFrame())
+
+    assert result["as_of"] == bars["dt"].max().date().isoformat()
+
+
+def test_build_snapshot_excludes_symbols_without_latest_trading_bar(monkeypatch, tmp_path):
+    monkeypatch.setattr(store, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setattr(store, "PARQUET_DIR", tmp_path / "data" / "parquet")
+    monkeypatch.setattr(store, "DB_PATH", tmp_path / "data" / "obs.db")
+    (tmp_path / "data" / "parquet").mkdir(parents=True, exist_ok=True)
+    store.engine = store.create_engine(f"sqlite:///{tmp_path / 'data' / 'obs.db'}")
+    store.init_registry()
+
+    from backend.compute import snapshot as snap_module
+    monkeypatch.setattr(snap_module, "SNAPSHOT_DIR", tmp_path / "snapshots")
+    (tmp_path / "snapshots").mkdir(parents=True, exist_ok=True)
+
+    fresh = make_test_bars()
+    fresh["isin"] = "INE123456789"
+    stale = make_test_bars().iloc[:-3].copy()
+    stale["isin"] = "INE987654321"
+    stale["symbol"] = "STALE"
+    store.upsert_bars(fresh)
+    store.upsert_bars(stale)
+
+    result = build_snapshot(security_master_df=pd.DataFrame())
+
+    assert result["as_of"] == fresh["dt"].max().date().isoformat()
+    assert [stock["isin"] for stock in result["stocks"]] == ["INE123456789"]
 
 
 def test_upsert_bars_preserves_existing_name(monkeypatch, tmp_path):
@@ -153,4 +200,3 @@ def test_upsert_bars_preserves_existing_name(monkeypatch, tmp_path):
     sym_after = store.get_symbol("INE111222333")
     # Should not be overwritten with NULL
     assert sym_after["name"] == "Original Company Name"
-

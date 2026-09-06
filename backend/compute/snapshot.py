@@ -101,13 +101,24 @@ def _to_float(v):
     return round(float(v), 2)
 
 
+def _bars_for_snapshot(isin: str, as_of: date) -> pd.DataFrame:
+    bars = read_bars(isin)
+    if bars.empty:
+        return bars
+    bars = bars[pd.to_datetime(bars["dt"]).dt.date <= as_of].copy()
+    if bars.empty or pd.to_datetime(bars["dt"].iloc[-1]).date() != as_of:
+        return pd.DataFrame()
+    return bars
+
+
 def build_snapshot(
     as_of: Optional[date] = None,
     security_master_df: Optional[pd.DataFrame] = None,
 ) -> dict:
-    if as_of is None:
-        as_of = date.today()
     symbols = list_symbols()
+    if as_of is None:
+        latest_bar = pd.to_datetime(symbols["last_dt"], errors="coerce").max() if not symbols.empty else pd.NaT
+        as_of = latest_bar.date() if pd.notna(latest_bar) else date.today()
     if symbols.empty:
         return {"as_of": as_of.isoformat(), "stocks": [], "health": {}}
 
@@ -136,7 +147,7 @@ def build_snapshot(
 
     roc_records = []
     for _, sym in symbols.iterrows():
-        bars = read_bars(sym["isin"])
+        bars = _bars_for_snapshot(sym["isin"], as_of)
         if len(bars) < 63:
             continue
         bars = add_roc(bars, 63)
@@ -147,7 +158,7 @@ def build_snapshot(
 
     stocks = []
     for _, sym in symbols.iterrows():
-        bars = read_bars(sym["isin"])
+        bars = _bars_for_snapshot(sym["isin"], as_of)
         sym_name = sym.get("name")
         stock_name = (
             master_names.get(sym["isin"])

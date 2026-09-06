@@ -209,7 +209,7 @@ def run_backtest(params: BacktestParams) -> dict:
             if exit_price is not None:
                 ret = (exit_price / buy - 1) * 100
                 days = (dt - pos["entry"]).days
-                equity += pos["shares"] * (exit_price - buy)
+                equity += pos["shares"] * exit_price
                 trades.append(Trade(
                     isin=isin, sym=pos["sym"], bo=pos["entry"], buy=buy,
                     exit=dt, sell=round(exit_price, 2), ret=round(ret, 2),

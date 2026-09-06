@@ -37,9 +37,22 @@ make backend
 make frontend
 ```
 
-Open http://localhost:5173.
+Open http://localhost:5173. If that port is occupied, Vite selects another local port; the API accepts both `localhost` and `127.0.0.1` development addresses.
 
-To keep data current, run `make update` daily after market close, then `make snapshot`.
+## Local operating routine
+
+All market data stays in the project-local `data/` directory, which Git ignores.
+
+After each market close, refresh the data and rebuild the candidate snapshot:
+
+```bash
+make update
+make snapshot
+```
+
+With `make backend` running, use the dashboard to review the current liquid breakout candidates. The screener's **Breakouts** filter uses the same liquidity rule. For a machine-readable list, request `http://127.0.0.1:8000/api/breakouts?days=1`.
+
+Use the Backtest page to validate the current rules against the locally stored history. A full-universe run currently takes about three minutes on this machine. It is a research check, not a forecast or a trading recommendation. After changing the code, run `make test` before relying on the result.
 
 ## Docker
 
